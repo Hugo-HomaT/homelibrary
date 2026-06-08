@@ -4,7 +4,7 @@ import TextureSwatch from './TextureSwatch'
 import { KIND_EMOJI } from '../data'
 import { hasWebGL } from '../lib/webgl'
 
-export default function AssetCard({ asset, index, isFav, isSelected, onToggleFav, onAdd, onOpen }) {
+export default function AssetCard({ asset, index, thumb, isFav, isSelected, onToggleFav, onAdd, onOpen }) {
   const { type, name, kind, pattern, palette, poly, res, formats, size, uploaded } = asset
   const [live, setLive] = useState(false)
   const leaveTimer = useRef()
@@ -49,8 +49,14 @@ export default function AssetCard({ asset, index, isFav, isSelected, onToggleFav
         {type === 'model' ? (
           <div className="stage">
             <div className={'studio' + (live ? ' faded' : '')}>
-              <span className="studio-emoji">{uploaded ? '◳' : KIND_EMOJI[kind] || '📦'}</span>
-              <span className="studio-floor" />
+              {thumb ? (
+                <img className="thumb-img" src={thumb} alt="" draggable={false} />
+              ) : (
+                <>
+                  <span className="studio-emoji">{uploaded ? '◳' : KIND_EMOJI[kind] || '📦'}</span>
+                  <span className="studio-floor" />
+                </>
+              )}
             </div>
             {live && (
               <div className="canvas-wrap">

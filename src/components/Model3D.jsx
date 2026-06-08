@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
-import { Canvas, useFrame, useLoader } from '@react-three/fiber'
+import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber'
 import { OrbitControls, ContactShadows, Float, Edges, Grid, Environment, Lightformer } from '@react-three/drei'
 import { makeCanvasTexture } from '../lib/textures'
 
@@ -629,5 +629,87 @@ export function UploadedTextureViewer({ url, shape = 'sphere' }) {
       </Suspense>
       <OrbitControls enablePan={false} minDistance={2.4} maxDistance={7} />
     </Canvas>
+  )
+}
+
+/* ============================================================== *
+ *  THUMBNAILS — rendu hors-écran, un seul <Canvas> partagé.
+ *  On rend chaque modèle UNE fois, on capture le PNG (toDataURL),
+ *  puis on passe au suivant. Les cards affichent alors une vraie
+ *  visu 3D au repos, sans monter de WebGL (donc sans saturer la
+ *  limite de contextes du navigateur — voir le hover dans AssetCard).
+ * ============================================================== */
+
+// Ratio ≈ celui de .preview (1 / 0.88) pour que le cadrage colle au survol.
+const THUMB_W = 320
+const THUMB_H = 282
+
+// Capture le contenu du canvas après quelques frames (le temps que
+// l'Environment + le modèle soient bien posés), puis prévient une seule fois.
+function Capturer({ onShot }) {
+  const gl = useThree((s) => s.gl)
+  const frame = useRef(0)
+  const done = useRef(false)
+  useFrame(() => {
+    if (done.current) return
+    frame.current += 1
+    if (frame.current < 5) return // laisse l'env (PMREM) + le modèle se stabiliser
+    done.current = true
+    let url = null
+    try {
+      url = gl.domElement.toDataURL('image/png')
+    } catch {
+      url = null // contexte perdu / canvas indisponible → fallback emoji côté card
+    }
+    onShot(url)
+  })
+  return null
+}
+
+// Pose statique, cadrage identique au survol mais sans rotation continue.
+// Léger 3/4 (rotation Y) pour que la lecture soit bien "3D".
+function ThumbScene({ job }) {
+  return (
+    <>
+      <Lights />
+      <Suspense fallback={null}>
+        <StudioEnv />
+        <group rotation={[0, -0.5, 0]}>
+          {job.uploaded ? (
+            <FitObject object={job.object3d} />
+          ) : (
+            <ProceduralModel kind={job.kind} palette={job.palette} />
+          )}
+        </group>
+        <ContactShadows position={[0, -1.25, 0]} opacity={0.4} scale={6} blur={2.4} far={3} resolution={256} />
+      </Suspense>
+    </>
+  )
+}
+
+// Rend toujours la tête de file (jobs[0]). Quand elle est capturée, App la
+// retire de la liste → la tête avance → re-render → capture du suivant.
+// Robuste aux ajouts (uploads) en cours de route. Liste vide → démonté → contexte libéré.
+export function ThumbnailFactory({ jobs, onCapture }) {
+  const job = jobs[0]
+  if (!job) return null
+  return (
+    <div
+      aria-hidden
+      style={{ position: 'fixed', left: -9999, top: 0, width: THUMB_W, height: THUMB_H, opacity: 0, pointerEvents: 'none' }}
+    >
+      <Canvas
+        dpr={[1, 2]}
+        camera={{ position: [0, 0.4, 4.3], fov: 38 }}
+        gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}
+        style={{ width: '100%', height: '100%' }}
+      >
+        {/* key={job.id} → remonte la scène ET le Capturer à chaque nouveau job */}
+        <group key={job.id}>
+          <ThumbScene job={job} />
+          <Capturer onShot={(url) => onCapture(job.id, url)} />
+        </group>
+      </Canvas>
+    </div>
   )
 }

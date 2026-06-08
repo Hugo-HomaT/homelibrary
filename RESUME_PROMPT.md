@@ -1,19 +1,19 @@
 # Prompt de reprise — Homa Asset Library
 
 > Copie-colle le bloc ci-dessous dans une nouvelle session Claude Code (ouverte dans
-> `C:\Users\hugod\Desktop\Airbnb`) pour reprendre le projet là où on s'est arrêté.
+> `C:\Users\hugod\Desktop\Work\homelibrary`) pour reprendre le projet là où on s'est arrêté.
 
 ---
 
 Tu reprends le développement de **Homa Asset Library**, un outil web **interne** à Homa Games pour
 parcourir, prévisualiser et gérer des **assets 3D et des textures** destinés aux playable ads.
-(Le dossier s'appelle `Airbnb` et le package `airbnb-clone` pour des raisons historiques — le projet a
-démarré comme un clone visuel d'Airbnb avant de pivoter. Le produit s'appelle **Homa Asset Library**.)
+(Le projet a démarré comme un clone visuel d'Airbnb avant de pivoter, donc l'historique git mentionne
+encore « airbnb » ; le package s'appelle désormais `homa-asset-library`. Le produit : **Homa Asset Library**.)
 
 **Avant tout : lis `CLAUDE.md` à la racine** — il décrit l'archi, les conventions et les règles produit.
 
 Stack : React 18 + Vite + three.js / react-three-fiber / drei, CSS simple (`src/index.css`).
-Lancer : `npm run dev` (port 5173). Config preview : `.claude/launch.json` → `airbnb-dev`.
+Lancer : `npm run dev` (port 5173). Config preview : `.claude/launch.json` → `homa-dev`.
 
 ### État actuel (fonctionnel et vérifié)
 - Grille d'assets avec recherche live, filtres (catégorie, type 3D/Texture), tri.
@@ -37,8 +37,7 @@ Lancer : `npm run dev` (port 5173). Config preview : `.claude/launch.json` → `
 1. Garder les 30 assets de démo procéduraux, ou vider la bibliothèque pour ne montrer que les vrais uploads ?
 2. **Persistance** des uploads (actuellement en mémoire, perdus au reload) : localStorage / IndexedDB / backend ?
 3. Export `.zip` réel du pack (aujourd'hui simulé via un toast).
-4. Renommer dossier/package `airbnb*` → `homa-asset-library` ?
-5. Miniatures pré-rendues pour les modèles uploadés (afficher sans survol) ; gestion des textures
+4. Miniatures pré-rendues pour les modèles uploadés (afficher sans survol) ; gestion des textures
    externes des FBX/GLB ; tags multiples + recherche par tag.
 
 ### Conseils de vérification

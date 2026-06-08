@@ -3,8 +3,9 @@
 > Internal web tool for **Homa Games** to browse, preview and manage **3D models & textures**
 > for playable ads. It is NOT an external marketplace.
 >
-> ⚠️ The folder is named `Airbnb` and the npm package is `airbnb-clone` for **legacy reasons**
-> (it started as an Airbnb visual clone, then pivoted). The product is **Homa Asset Library**.
+> ℹ️ Heads-up: the project started as an Airbnb visual clone before pivoting, so older **git history**
+> still references "airbnb". The package is now `homa-asset-library` and everything is branded
+> **Homa Asset Library**.
 
 ## Run it
 
@@ -13,7 +14,7 @@ npm install      # first time
 npm run dev      # Vite dev server on http://localhost:5173
 ```
 
-Node 22 / npm 10. There is a Claude Code preview config in `.claude/launch.json` (name: `airbnb-dev`).
+Node 22 / npm 10. There is a Claude Code preview config in `.claude/launch.json` (name: `homa-dev`).
 
 ## Stack
 
@@ -114,6 +115,5 @@ Upload auto-detection (in `CreateAssetModal` + `lib/parseAsset.js`):
 
 - Decide whether to keep the 30 procedural demo assets or ship an empty library (only real uploads).
 - Persistence for uploads (localStorage / IndexedDB / backend) + real `.zip` pack export.
-- Optionally rename folder/package `airbnb*` → `homa-asset-library`.
 - Pre-rendered thumbnails for uploaded models (so cards show them without hover).
 - Multi-tag upload + tag search; handle FBX/GLB external textures.

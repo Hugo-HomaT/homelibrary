@@ -633,6 +633,16 @@ a {
   background: radial-gradient(closest-side, rgba(60, 50, 120, 0.22), rgba(60, 50, 120, 0));
   animation: floorPulse 3.6s ease-in-out infinite;
 }
+/* Thumbnail 3D pré-rendu (PNG transparent) posé sur le fond studio. */
+.thumb-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  animation: fadeIn 0.45s ease;
+}
 .canvas-wrap {
   position: absolute;
   inset: 0;

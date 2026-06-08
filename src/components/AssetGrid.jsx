@@ -1,6 +1,6 @@
 import AssetCard from './AssetCard'
 
-export default function AssetGrid({ assets, favorites, selection, onToggleFav, onAdd, onOpen }) {
+export default function AssetGrid({ assets, favorites, selection, thumbs, onToggleFav, onAdd, onOpen }) {
   if (assets.length === 0) {
     return (
       <div className="empty">
@@ -18,6 +18,7 @@ export default function AssetGrid({ assets, favorites, selection, onToggleFav, o
           key={asset.id}
           asset={asset}
           index={i}
+          thumb={thumbs?.get(asset.id)}
           isFav={favorites.has(asset.id)}
           isSelected={selection.has(asset.id)}
           onToggleFav={onToggleFav}

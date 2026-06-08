@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import Header from './components/Header'
 import CategoryBar from './components/CategoryBar'
 import AssetGrid from './components/AssetGrid'
@@ -7,6 +7,8 @@ import CreateAssetModal from './components/CreateAssetModal'
 import SelectionDrawer from './components/SelectionDrawer'
 import Toasts from './components/Toasts'
 import Footer from './components/Footer'
+import { ThumbnailFactory } from './components/Model3D'
+import { hasWebGL } from './lib/webgl'
 import { assets as initialAssets, categories } from './data'
 
 export default function App() {
@@ -24,6 +26,17 @@ export default function App() {
   const [createOpen, setCreateOpen] = useState(false)
   const [toasts, setToasts] = useState([])
   const toastId = useRef(0)
+
+  /* ---------- pre-rendered model thumbnails (id -> dataURL | null) ---------- */
+  const [thumbs, setThumbs] = useState(() => new Map())
+  const captureThumb = useCallback((id, url) => {
+    setThumbs((prev) => {
+      const next = new Map(prev)
+      next.set(id, url) // null = capture tentée mais échouée → la card garde l'emoji
+      return next
+    })
+  }, [])
+  const webglOk = useMemo(() => hasWebGL(), [])
 
   /* ---------- toasts ---------- */
   const pushToast = (msg, kind = 'info') => {
@@ -109,6 +122,16 @@ export default function App() {
     return by[sort] ? [...list].sort(by[sort]) : list
   }, [assets, query, favView, favorites, typeFilter, activeCategory, sort])
 
+  // Modèles encore sans thumbnail → file d'attente de la factory (rendu un par un).
+  // Inclut les uploads (dès qu'ils ont un object3d). WebGL absent → on n'en génère aucun.
+  const thumbJobs = useMemo(
+    () =>
+      webglOk
+        ? assets.filter((a) => a.type === 'model' && !thumbs.has(a.id) && (a.uploaded ? !!a.object3d : true))
+        : [],
+    [assets, thumbs, webglOk]
+  )
+
   const selectionItems = assets.filter((a) => selection.has(a.id))
   const filtersActive = query || activeCategory !== 'all' || typeFilter !== 'all' || favView
   const catLabel = categories.find((c) => c.id === activeCategory)?.label || 'All'
@@ -153,6 +176,7 @@ export default function App() {
           assets={visible}
           favorites={favorites}
           selection={selection}
+          thumbs={thumbs}
           onToggleFav={toggleFav}
           onAdd={toggleSelection}
           onOpen={setOpenAsset}
@@ -194,6 +218,9 @@ export default function App() {
       />
 
       <Toasts toasts={toasts} onDismiss={dismissToast} />
+
+      {/* Génère les thumbnails 3D hors-écran (un seul canvas, en file). Démonté quand fini. */}
+      {thumbJobs.length > 0 && <ThumbnailFactory jobs={thumbJobs} onCapture={captureThumb} />}
     </div>
   )
 }
