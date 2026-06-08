@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { ModelViewer, TextureViewer, UploadedModelViewer, UploadedTextureViewer } from './Model3D'
 import ViewerControls from './ViewerControls'
+import TextureSwatch from './TextureSwatch'
+import LiveTile from './LiveTile'
 import { categories } from '../data'
 import { hasWebGL } from '../lib/webgl'
 import {
@@ -13,15 +15,15 @@ import {
   formatBytes,
   detectMapRole,
   MAP_ROLES,
+  ROLE_LABEL,
 } from '../lib/parseAsset'
 
 let _uid = 0
 const uid = () => ++_uid
 
 // Même modale pour créer un asset OU en éditer un existant (prop `editAsset`).
-// Un modèle 3D peut porter un "texture set" : des images attachées, chacune avec
-// un rôle PBR auto-détecté (albedo, normal, roughness…). En édition on dépose des
-// images pour enrichir ce set ; en création on dépose modèle + textures ensemble.
+// Les deux modes partagent la même section "contents" : l'asset principal + son
+// texture set, chaque vignette étant une LiveTile (mini-preview 3D au survol).
 export default function CreateAssetModal({ existingAssets, editAsset = null, onClose, onSubmit }) {
   const isEdit = !!editAsset
 
@@ -135,22 +137,26 @@ export default function CreateAssetModal({ existingAssets, editAsset = null, onC
     if (e.dataTransfer?.files?.length) addFiles(e.dataTransfer.files)
   }
 
-  /* ---------- derived (auto-detected) ---------- */
+  /* ---------- derived ---------- */
   const pending = entries.some((e) => e.status === 'pending')
   const modelEntries = entries.filter((e) => e.group === 'model')
-  const otherEntries = entries.filter((e) => e.group === 'other')
   const imageEntries = entries.filter((e) => e.group === 'image')
   const modelEntry = isEdit ? null : modelEntries.find((e) => e.object3d) || modelEntries[0]
 
   // Quand l'asset est un modèle, les images sont des maps attachées (texture set).
   const maps = type === 'model' ? imageEntries : []
   const mapsBytes = maps.reduce((s, e) => s + (e.sizeBytes || 0), 0)
+  const mapIds = new Set(maps.map((m) => m.id))
 
   // Texture (asset image) : on garde la plus grande comme image principale.
   const primaryImage =
     type === 'texture'
       ? imageEntries.reduce((best, e) => (e.width * e.height > (best ? best.width * best.height : -1) ? e : best), null)
       : null
+
+  // Asset principal (création) + fichiers restants (ni core, ni maps) → listés, supprimables.
+  const coreEntry = isEdit ? null : type === 'model' ? modelEntry : primaryImage
+  const leftover = isEdit ? [] : entries.filter((e) => e.id !== coreEntry?.id && !mapIds.has(e.id))
 
   // Formats : modèle → extensions des fichiers modèle ; texture → extensions des images.
   const modelFormats = [...new Set(modelEntries.map((e) => e.ext.toUpperCase()))]
@@ -169,6 +175,72 @@ export default function CreateAssetModal({ existingAssets, editAsset = null, onC
     const baseBytes = Math.max(editAsset.sizeBytes - oldMaps, 0)
     totalSize = baseBytes + mapsBytes
   }
+
+  /* ---------- "contents" : asset principal (unifié create/edit) ---------- */
+  const core = (() => {
+    if (isEdit) {
+      const isMod = editAsset.type === 'model'
+      const texPixels = !isMod && editAsset.uploaded && editAsset.width > 0
+      // Modèle → pas d'image statique : la tuile rend le 3D "vivant" au repos (eager),
+      // exactement comme à l'upload. Texture → on garde son image au repos.
+      const image = isMod ? null : texPixels ? editAsset.imageUrl : null
+      const sub = isMod
+        ? [
+            editAsset.formats?.join(' · '),
+            editAsset.poly != null ? `${editAsset.poly.toLocaleString('en-US')} tris` : null,
+            editAsset.size,
+            editAsset.uploaded ? null : 'procedural',
+          ]
+            .filter(Boolean)
+            .join(' · ')
+        : editAsset.uploaded
+        ? [editAsset.formats?.join(' · '), editAsset.width > 0 ? `${editAsset.width}×${editAsset.height}` : editAsset.res, editAsset.size]
+            .filter(Boolean)
+            .join(' · ')
+        : [editAsset.formats?.join(' · '), editAsset.res, 'tileable', editAsset.size].filter(Boolean).join(' · ')
+      return {
+        label: 'Current asset',
+        name: editAsset.fileName || editAsset.name,
+        sub,
+        tag: editAsset.uploaded ? 'Uploaded' : 'Demo',
+        image,
+        icon: isMod ? '◳' : '🖼',
+        procTex: !isMod && !editAsset.uploaded,
+        preview: isMod
+          ? { type: 'model', uploaded: !!editAsset.uploaded, object3d: editAsset.object3d, kind: editAsset.kind, palette: editAsset.palette }
+          : { type: 'texture', uploaded: !!editAsset.uploaded, url: texPixels ? editAsset.imageUrl : null, pattern: editAsset.pattern, palette: editAsset.palette, seed: editAsset.id },
+      }
+    }
+    if (!coreEntry) return null
+    const isMod = type === 'model'
+    const texPixels = !isMod && coreEntry.width > 0
+    return {
+      label: 'Detected asset',
+      name: coreEntry.file?.name || coreEntry.name,
+      sub: isMod
+        ? [
+            coreEntry.ext?.toUpperCase(),
+            coreEntry.tris != null ? `${coreEntry.tris.toLocaleString('en-US')} tris` : coreEntry.status === 'pending' ? 'analyzing…' : null,
+            formatBytes(coreEntry.sizeBytes || 0),
+          ]
+            .filter(Boolean)
+            .join(' · ')
+        : [
+            coreEntry.ext?.toUpperCase(),
+            coreEntry.width > 0 ? `${coreEntry.width}×${coreEntry.height} (${res})` : coreEntry.status === 'pending' ? 'reading…' : 'no pixel preview',
+            formatBytes(coreEntry.sizeBytes || 0),
+          ]
+            .filter(Boolean)
+            .join(' · '),
+      tag: 'New',
+      image: isMod ? null : texPixels ? coreEntry.url : null,
+      icon: isMod ? '◳' : '🖼',
+      procTex: false,
+      preview: isMod
+        ? { type: 'model', uploaded: true, object3d: coreEntry.object3d }
+        : { type: 'texture', uploaded: true, url: texPixels ? coreEntry.url : null },
+    }
+  })()
 
   const nameTrim = name.trim()
   const dupName =
@@ -221,6 +293,7 @@ export default function CreateAssetModal({ existingAssets, editAsset = null, onC
             poly: tris ?? null,
             object3d: modelEntry?.object3d || null,
             primaryFormat: (modelEntry?.ext || '').toUpperCase(),
+            fileName: modelEntry?.file?.name || null,
             textures: buildMaps(),
           }
         : {
@@ -230,12 +303,13 @@ export default function CreateAssetModal({ existingAssets, editAsset = null, onC
             height: primaryImage?.height || 0,
             imageUrl: primaryImage?.url || null,
             primaryFormat: (primaryImage?.ext || '').toUpperCase(),
+            fileName: primaryImage?.file?.name || null,
           }
     onSubmit(asset)
   }
 
-  /* ---------- preview ---------- */
-  const renderModelControls = () => (
+  /* ---------- big interactive preview (inspection) ---------- */
+  const modelControls = () => (
     <>
       <ViewerControls mode={mode} onMode={setMode} autoRotate={autoRotate} onAutoRotate={() => setAutoRotate((v) => !v)} />
       <span className="viewer-hint">Drag to rotate · scroll to zoom</span>
@@ -248,7 +322,7 @@ export default function CreateAssetModal({ existingAssets, editAsset = null, onC
         return (
           <>
             <UploadedModelViewer object={editAsset.object3d} mode={mode} autoRotate={autoRotate} />
-            {renderModelControls()}
+            {modelControls()}
           </>
         )
       }
@@ -256,7 +330,7 @@ export default function CreateAssetModal({ existingAssets, editAsset = null, onC
         return (
           <>
             <ModelViewer kind={editAsset.kind} palette={editAsset.palette} mode={mode} autoRotate={autoRotate} />
-            {renderModelControls()}
+            {modelControls()}
           </>
         )
       }
@@ -267,7 +341,6 @@ export default function CreateAssetModal({ existingAssets, editAsset = null, onC
         </div>
       )
     }
-    // texture
     if (!editAsset.uploaded) {
       return webgl ? (
         <TextureViewer pattern={editAsset.pattern} palette={editAsset.palette} seed={editAsset.id} shape="sphere" />
@@ -275,7 +348,7 @@ export default function CreateAssetModal({ existingAssets, editAsset = null, onC
         <div className="preview-empty"><span>▦</span><p>WebGL is unavailable</p></div>
       )
     }
-    return editAsset.imageUrl ? (
+    return editAsset.width > 0 && editAsset.imageUrl ? (
       <div className="tex-flat" style={{ backgroundImage: `url(${editAsset.imageUrl})`, backgroundSize: '50%' }} />
     ) : (
       <div className="preview-empty"><span>🖼</span><p>No pixel preview (TGA/EXR)</p></div>
@@ -287,7 +360,7 @@ export default function CreateAssetModal({ existingAssets, editAsset = null, onC
       return webgl && modelEntry?.object3d ? (
         <>
           <UploadedModelViewer object={modelEntry.object3d} mode={mode} autoRotate={autoRotate} />
-          {renderModelControls()}
+          {modelControls()}
         </>
       ) : (
         <div className="preview-empty">
@@ -328,7 +401,6 @@ export default function CreateAssetModal({ existingAssets, editAsset = null, onC
     )
   }
 
-  const fileListEntries = type === 'model' ? [...modelEntries, ...otherEntries] : entries
   const showBlock = isEdit || entries.length > 0
 
   return (
@@ -345,7 +417,7 @@ export default function CreateAssetModal({ existingAssets, editAsset = null, onC
               ? editAsset.type === 'model'
                 ? 'Update details and manage the texture maps attached to this model.'
                 : 'Update name, description and category.'
-              : 'Type, format, resolution and tris are detected from your files.'}
+              : 'Type, format, resolution and tris are detected from your files. Hover a tile for a live 3D look.'}
           </p>
         </div>
 
@@ -387,10 +459,99 @@ export default function CreateAssetModal({ existingAssets, editAsset = null, onC
 
           {showBlock && (
             <>
-              {/* Model / other file rows */}
-              {fileListEntries.length > 0 && (
+              {/* Core asset (unifié create/edit) */}
+              {core && (
+                <div className="maps-edit">
+                  <div className="maps-edit-head">
+                    <span>{core.label}</span>
+                  </div>
+                  <div className="map-list">
+                    <div className="map-item">
+                      <LiveTile
+                        preview={core.preview}
+                        label={core.name}
+                        image={core.image}
+                        fallback={
+                          core.procTex ? (
+                            <TextureSwatch pattern={editAsset.pattern} palette={editAsset.palette} seed={editAsset.id} size={40} />
+                          ) : (
+                            <span className="lt-ph">{core.icon}</span>
+                          )
+                        }
+                      />
+                      <div className="file-meta">
+                        <span className="file-name">{core.name}</span>
+                        <span className="file-sub">{core.sub}</span>
+                      </div>
+                      <span className="ca-type">{core.tag}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Texture maps attachées au modèle */}
+              {type === 'model' && (
+                <div className="maps-edit">
+                  <div className="maps-edit-head">
+                    <span>Texture maps</span>
+                    {maps.length > 0 && <em>{maps.length} · {formatBytes(mapsBytes)}</em>}
+                  </div>
+                  {maps.length === 0 ? (
+                    <p className="maps-empty">
+                      No textures attached. {imagesOnly ? 'Drop maps above' : 'Drop albedo / normal / roughness… with the model'} to build the set.
+                    </p>
+                  ) : (
+                    <div className="map-list">
+                      {maps.map((e) => {
+                        const hasPixels = e.width > 0 && e.url
+                        return (
+                          <div className="map-item" key={e.id}>
+                            <LiveTile
+                              preview={{ type: 'texture', uploaded: true, url: hasPixels ? e.url : null }}
+                              image={hasPixels ? e.url : null}
+                              label={[ROLE_LABEL[e.role] || e.role, e.file?.name || e.name].filter(Boolean).join(' · ')}
+                              fallback={<span className="lt-ph">{(e.ext || '?').toUpperCase()}</span>}
+                            />
+                            <div className="file-meta">
+                              <span className="file-name">{e.file?.name || e.name}</span>
+                              <span className="file-sub">
+                                {e.status === 'pending'
+                                  ? 'analyzing…'
+                                  : e.width > 0
+                                  ? `${e.width}×${e.height}`
+                                  : ['tga', 'exr'].includes(e.ext)
+                                  ? 'no pixel preview'
+                                  : 'dimensions n/a'}
+                                {e.sizeBytes ? ` · ${formatBytes(e.sizeBytes)}` : ''}
+                              </span>
+                            </div>
+                            <select
+                              className="map-role"
+                              value={e.role || 'other'}
+                              onChange={(ev) => setRole(e.id, ev.target.value)}
+                              aria-label="Texture role"
+                            >
+                              {MAP_ROLES.map((r) => (
+                                <option key={r.id} value={r.id}>
+                                  {r.label}
+                                </option>
+                              ))}
+                            </select>
+                            <button className="file-x" onClick={() => removeEntry(e.id)} aria-label="Remove texture">
+                              ×
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Fichiers restants (extras / non reconnus) — rien n'est caché */}
+              {leftover.length > 0 && (
                 <div className="file-list">
-                  {fileListEntries.map((e) => (
+                  {leftover.map((e) => (
                     <div className="file-row" key={e.id}>
                       <span className={'file-ic ' + e.group}>
                         {e.group === 'model' ? '◳' : e.group === 'image' ? '🖼' : '📄'}
@@ -398,7 +559,7 @@ export default function CreateAssetModal({ existingAssets, editAsset = null, onC
                       <div className="file-meta">
                         <span className="file-name">{e.file?.name || e.name}</span>
                         <span className="file-sub">
-                          {e.sizeBytes ? formatBytes(e.sizeBytes) : '—'}
+                          {formatBytes(e.sizeBytes || 0)}
                           {e.status === 'pending' && ' · analyzing…'}
                           {e.group === 'model' && e.tris != null && ` · ${e.tris.toLocaleString('en-US')} tris`}
                           {e.status === 'error' && ' · could not parse'}
@@ -412,92 +573,10 @@ export default function CreateAssetModal({ existingAssets, editAsset = null, onC
                 </div>
               )}
 
-              {/* Texture maps attached to the model */}
-              {type === 'model' && (
-                <div className="maps-edit">
-                  <div className="maps-edit-head">
-                    <span>Texture maps</span>
-                    {maps.length > 0 && <em>{maps.length} · {formatBytes(mapsBytes)}</em>}
-                  </div>
-                  {maps.length === 0 ? (
-                    <p className="maps-empty">
-                      No textures attached. {imagesOnly ? 'Drop maps above' : 'Drop albedo / normal / roughness… with the model'} to build the set.
-                    </p>
-                  ) : (
-                    <div className="map-list">
-                      {maps.map((e) => (
-                        <div className="map-item" key={e.id}>
-                          <span className="map-thumb">
-                            {e.url ? <img src={e.url} alt="" /> : <span className="map-thumb-ph">{(e.ext || '?').toUpperCase()}</span>}
-                          </span>
-                          <div className="file-meta">
-                            <span className="file-name">{e.file?.name || e.name}</span>
-                            <span className="file-sub">
-                              {e.status === 'pending'
-                                ? 'analyzing…'
-                                : e.width > 0
-                                ? `${e.width}×${e.height}`
-                                : ['tga', 'exr'].includes(e.ext)
-                                ? 'no pixel preview'
-                                : 'dimensions n/a'}
-                              {e.sizeBytes ? ` · ${formatBytes(e.sizeBytes)}` : ''}
-                            </span>
-                          </div>
-                          <select
-                            className="map-role"
-                            value={e.role || 'other'}
-                            onChange={(ev) => setRole(e.id, ev.target.value)}
-                            aria-label="Texture role"
-                          >
-                            {MAP_ROLES.map((r) => (
-                              <option key={r.id} value={r.id}>
-                                {r.label}
-                              </option>
-                            ))}
-                          </select>
-                          <button className="file-x" onClick={() => removeEntry(e.id)} aria-label="Remove texture">
-                            ×
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+              {/* Big interactive preview */}
+              {(isEdit || core) && (
+                <div className="upload-preview">{isEdit ? renderEditPreview() : renderCreatePreview()}</div>
               )}
-
-              {/* Detected summary (création seulement) */}
-              {!isEdit && (
-                <div className="detected">
-                  <span className="det-chip">
-                    Type <b>{type === 'model' ? '3D model' : type === 'texture' ? 'Texture' : '—'}</b>
-                  </span>
-                  <span className="det-chip">
-                    Format <b>{formats.join(' · ') || '—'}</b>
-                  </span>
-                  {type === 'model' ? (
-                    <>
-                      <span className="det-chip">
-                        Tris <b>{tris != null ? tris.toLocaleString('en-US') : '—'}</b>
-                      </span>
-                      {maps.length > 0 && (
-                        <span className="det-chip">
-                          Maps <b>{maps.length}</b>
-                        </span>
-                      )}
-                    </>
-                  ) : (
-                    <span className="det-chip">
-                      Resolution <b>{maxDim > 0 ? `${primaryImage.width}×${primaryImage.height} (${res})` : '—'}</b>
-                    </span>
-                  )}
-                  <span className="det-chip">
-                    Size <b>{formatBytes(totalSize || 0)}</b>
-                  </span>
-                </div>
-              )}
-
-              {/* Live preview */}
-              <div className="upload-preview">{isEdit ? renderEditPreview() : renderCreatePreview()}</div>
             </>
           )}
 

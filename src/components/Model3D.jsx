@@ -496,17 +496,18 @@ function TexturedMesh({ pattern, palette, seed, shape }) {
   )
 }
 
-export function TextureViewer({ pattern, palette, seed, shape = 'sphere' }) {
+// `stage` : fond transparent + auto-rotation sans OrbitControls (pour les tuiles LiveTile).
+export function TextureViewer({ pattern, palette, seed, shape = 'sphere', stage = false }) {
   return (
-    <Canvas dpr={[1, 2]} camera={{ position: [0, 0, 4], fov: 40 }} gl={{ antialias: true }}>
-      <color attach="background" args={['#0e0d16']} />
+    <Canvas dpr={[1, 2]} camera={{ position: [0, 0, 4], fov: 40 }} gl={{ antialias: true, alpha: true }}>
+      {!stage && <color attach="background" args={['#0e0d16']} />}
       <Lights />
       <Suspense fallback={null}>
         <StudioEnv />
         <TexturedMesh pattern={pattern} palette={palette} seed={seed} shape={shape} />
         <ContactShadows position={[0, -1.6, 0]} opacity={0.5} scale={7} blur={2.5} far={4} />
       </Suspense>
-      <OrbitControls enablePan={false} minDistance={2.4} maxDistance={7} />
+      {!stage && <OrbitControls enablePan={false} minDistance={2.4} maxDistance={7} />}
     </Canvas>
   )
 }
@@ -617,17 +618,17 @@ function UploadedTexturedMesh({ url, shape }) {
   )
 }
 
-export function UploadedTextureViewer({ url, shape = 'sphere' }) {
+export function UploadedTextureViewer({ url, shape = 'sphere', stage = false }) {
   return (
-    <Canvas dpr={[1, 2]} camera={{ position: [0, 0, 4], fov: 40 }} gl={{ antialias: true }}>
-      <color attach="background" args={['#0e0d16']} />
+    <Canvas dpr={[1, 2]} camera={{ position: [0, 0, 4], fov: 40 }} gl={{ antialias: true, alpha: true }}>
+      {!stage && <color attach="background" args={['#0e0d16']} />}
       <Lights />
       <Suspense fallback={null}>
         <StudioEnv />
         <UploadedTexturedMesh url={url} shape={shape} />
         <ContactShadows position={[0, -1.6, 0]} opacity={0.5} scale={7} blur={2.5} far={4} />
       </Suspense>
-      <OrbitControls enablePan={false} minDistance={2.4} maxDistance={7} />
+      {!stage && <OrbitControls enablePan={false} minDistance={2.4} maxDistance={7} />}
     </Canvas>
   )
 }
