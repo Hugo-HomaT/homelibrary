@@ -16,6 +16,41 @@ export function groupOf(file) {
   return 'other'
 }
 
+// Rôles de texture (PBR) — pour rattacher des maps à un modèle 3D.
+export const MAP_ROLES = [
+  { id: 'albedo', label: 'Albedo' },
+  { id: 'normal', label: 'Normal' },
+  { id: 'roughness', label: 'Roughness' },
+  { id: 'metalness', label: 'Metalness' },
+  { id: 'ao', label: 'AO' },
+  { id: 'emissive', label: 'Emissive' },
+  { id: 'height', label: 'Height' },
+  { id: 'opacity', label: 'Opacity' },
+  { id: 'orm', label: 'ORM' },
+  { id: 'other', label: 'Other' },
+]
+export const ROLE_LABEL = Object.fromEntries(MAP_ROLES.map((r) => [r.id, r.label]))
+
+// Devine le rôle d'une map depuis son nom de fichier (conventions courantes des DCC).
+// Ex : crate_Normal.png → normal, hero_basecolor.jpg → albedo, wood_r.png → roughness.
+export function detectMapRole(filename) {
+  const b = baseName(filename).toLowerCase().replace(/[^a-z0-9]+/g, '_')
+  const tokens = b.split('_').filter(Boolean)
+  const has = (...w) => w.some((x) => b.includes(x))
+  const ends = (...c) => c.some((x) => b.endsWith('_' + x))
+  const tok = (...c) => c.some((x) => tokens.includes(x)) // match par token (évite "n[orm]al" → orm)
+  if (tok('orm') || ends('orm')) return 'orm'
+  if (has('albedo', 'basecolor', 'base_color', 'diffuse') || ends('alb', 'col', 'color', 'bc', 'diff', 'd')) return 'albedo'
+  if (has('normal') || ends('nrm', 'norm', 'nor', 'n')) return 'normal'
+  if (has('roughness', 'rough') || ends('rgh', 'r')) return 'roughness'
+  if (has('metalness', 'metallic', 'metal') || ends('met', 'm')) return 'metalness'
+  if (has('occlusion', 'ambient_occlusion') || ends('ao', 'occ')) return 'ao'
+  if (has('emissive', 'emission') || ends('emit', 'e')) return 'emissive'
+  if (has('height', 'displacement', 'displace', 'bump') || ends('disp', 'height', 'bump', 'h')) return 'height'
+  if (has('opacity', 'alpha') || ends('opacity', 'alpha', 'mask')) return 'opacity'
+  return 'other'
+}
+
 export function formatBytes(b) {
   if (!b) return '0 B'
   const u = ['B', 'KB', 'MB', 'GB']

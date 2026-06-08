@@ -3,6 +3,7 @@ import { ModelViewer, TextureViewer, UploadedModelViewer, UploadedTextureViewer 
 import ViewerControls from './ViewerControls'
 import TextureSwatch from './TextureSwatch'
 import { categories, KIND_EMOJI } from '../data'
+import { ROLE_LABEL } from '../lib/parseAsset'
 import { hasWebGL } from '../lib/webgl'
 
 const catLabel = (id) => categories.find((c) => c.id === id)?.label || id
@@ -14,7 +15,7 @@ const PBR_MAPS = [
   { label: 'AO', tint: { base: '#45454d', accent: '#8a8a92' } },
 ]
 
-export default function AssetModal({ asset, isFav, isSelected, onToggleFav, onAdd, onDownload, onClose }) {
+export default function AssetModal({ asset, isFav, isSelected, onToggleFav, onAdd, onDownload, onEdit, onClose }) {
   const isModel = asset.type === 'model'
   const uploaded = !!asset.uploaded
   const [mode, setMode] = useState('shaded')
@@ -190,6 +191,23 @@ export default function AssetModal({ asset, isFav, isSelected, onToggleFav, onAd
             </>
           )}
 
+          {isModel && asset.textures?.length > 0 && (
+            <div className="tex-set">
+              <span className="format-label">Texture maps · {asset.textures.length}</span>
+              <div className="tex-set-grid">
+                {asset.textures.map((t) => (
+                  <div className="tex-set-cell" key={t.id}>
+                    <div className="tex-set-thumb">
+                      {t.url ? <img src={t.url} alt={t.role} /> : <span>{(t.ext || '?').toUpperCase()}</span>}
+                    </div>
+                    <span className="tsc-role">{ROLE_LABEL[t.role] || t.role}</span>
+                    <span className="tsc-dim">{t.width > 0 ? `${t.width}×${t.height}` : t.ext}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="format-row">
             <span className="format-label">Format</span>
             <div className="format-pills">
@@ -202,6 +220,9 @@ export default function AssetModal({ asset, isFav, isSelected, onToggleFav, onAd
           <div className="mi-actions">
             <button className="btn-primary" onClick={() => onDownload(asset, format)}>
               ↓ Download .{format}
+            </button>
+            <button className="btn-ghost" onClick={onEdit}>
+              ✎ Edit
             </button>
             <button className={'btn-ghost' + (isSelected ? ' added' : '')} onClick={() => onAdd(asset)}>
               {isSelected ? '✓ In selection' : '+ Select'}

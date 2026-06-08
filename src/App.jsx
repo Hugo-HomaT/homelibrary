@@ -24,6 +24,7 @@ export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [openAsset, setOpenAsset] = useState(null)
   const [createOpen, setCreateOpen] = useState(false)
+  const [editingAsset, setEditingAsset] = useState(null)
   const [toasts, setToasts] = useState([])
   const toastId = useRef(0)
 
@@ -92,6 +93,13 @@ export default function App() {
     setCreateOpen(false)
     pushToast(`“${asset.name}” added to the library`, 'success')
     setOpenAsset(asset)
+  }
+
+  const updateAsset = (id, patch) => {
+    setAssets((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)))
+    setOpenAsset((cur) => (cur && cur.id === id ? { ...cur, ...patch } : cur))
+    setEditingAsset(null)
+    pushToast(`“${patch.name || 'Asset'}” updated`, 'success')
   }
 
   const resetFilters = () => {
@@ -193,15 +201,23 @@ export default function App() {
           onToggleFav={toggleFav}
           onAdd={toggleSelection}
           onDownload={download}
+          onEdit={() => {
+            setEditingAsset(openAsset)
+            setOpenAsset(null)
+          }}
           onClose={() => setOpenAsset(null)}
         />
       )}
 
-      {createOpen && (
+      {(createOpen || editingAsset) && (
         <CreateAssetModal
           existingAssets={assets}
-          onClose={() => setCreateOpen(false)}
-          onCreate={createAsset}
+          editAsset={editingAsset}
+          onClose={() => {
+            setCreateOpen(false)
+            setEditingAsset(null)
+          }}
+          onSubmit={editingAsset ? (patch) => updateAsset(editingAsset.id, patch) : createAsset}
         />
       )}
 
